@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>나의 2026 스케줄러</title>
+  <meta name="theme-color" content="#ffffff" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="스케줄러" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <style>
+    /* ===== 기본 리셋 ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #ffffff;
+      --bg2: #f7f7f5;
+      --bg3: #efefec;
+      --text: #1a1a18;
+      --text2: #6b6b68;
+      --text3: #a8a8a5;
+      --border: rgba(0,0,0,0.10);
+      --border2: rgba(0,0,0,0.18);
+      --radius: 10px;
+      --radius-lg: 14px;
+      --cat-work: #378ADD; --cat-work-bg: #E6F1FB; --cat-work-text: #0C447C;
+      --cat-personal: #1D9E75; --cat-personal-bg: #E1F5EE; --cat-personal-text: #085041;
+      --cat-health: #D4537E; --cat-health-bg: #FBEAF0; --cat-health-text: #72243E;
+      --cat-study: #BA7517; --cat-study-bg: #FAEEDA; --cat-study-text: #633806;
+      --cat-etc: #888780; --cat-etc-bg: #F1EFE8; --cat-etc-text: #444441;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1c1c1a; --bg2: #252523; --bg3: #2e2e2b;
+        --text: #f0f0ee; --text2: #9a9a97; --text3: #5a5a57;
+        --border: rgba(255,255,255,0.10); --border2: rgba(255,255,255,0.18);
+      }
+    }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100dvh; }
+
+    /* ===== 상단바 ===== */
+    .topbar {
+      position: sticky; top: 0; z-index: 50;
+      background: var(--bg); border-bottom: 0.5px solid var(--border2);
+      padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+    }
+    .nav-group { display: flex; align-items: center; gap: 6px; }
+    .month-title { font-size: 17px; font-weight: 600; color: var(--text); min-width: 130px; text-align: center; }
+    .btn { padding: 6px 12px; font-size: 13px; border-radius: var(--radius); border: 0.5px solid var(--border2); background: transparent; color: var(--text); cursor: pointer; transition: background 0.12s; }
+    .btn:hover { background: var(--bg2); }
+    .btn-primary { background: var(--text); color: var(--bg); border-color: var(--text); font-weight: 500; }
+    .btn-primary:hover { opacity: 0.85; }
+    .view-tabs { display: flex; border: 0.5px solid var(--border2); border-radius: var(--radius); overflow: hidden; }
+    .view-tab { padding: 5px 13px; font-size: 12px; background: transparent; color: var(--text2); border: none; cursor: pointer; transition: all 0.12s; }
+    .view-tab.active { background: var(--text); color: var(--bg); }
+    .sync-dot { width: 7px; height: 7px; border-radius: 50%; background: #ccc; flex-shrink: 0; }
+    .sync-dot.ok { background: #1D9E75; }
+    .sync-dot.err { background: #E24B4A; }
+
+    /* ===== 범례 ===== */
+    .legend { display: flex; gap: 10px; flex-wrap: wrap; padding: 8px 16px; border-bottom: 0.5px solid var(--border); }
+    .legend-item { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text2); }
+    .legend-dot { width: 7px; height: 7px; border-radius: 50%; }
+
+    /* ===== 월 달력 ===== */
+    #monthView { padding: 0 8px 8px; }
+    .cal-table { width: 100%; border-collapse: collapse; }
+    .cal-table th { font-size: 11px; font-weight: 500; color: var(--text2); padding: 6px 2px; text-align: center; }
+    .cal-table th:first-child { color: #E24B4A; }
+    .cal-table th:last-child { color: #378ADD; }
+    .day-cell { vertical-align: top; border: 0.5px solid var(--border); padding: 3px; height: 88px; cursor: pointer; transition: background 0.1s; }
+    .day-cell:hover { background: var(--bg2); }
+    .day-cell.other { opacity: 0.35; }
+    .day-cell.today { background: var(--bg2); }
+    .day-num { font-size: 12px; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; }
+    .day-cell.today .day-num { background: var(--text); color: var(--bg); font-weight: 600; }
+    .col-sun .day-num { color: #E24B4A; }
+    .col-sat .day-num { color: #378ADD; }
+    .chip { display: block; font-size: 10px; padding: 1px 5px; border-radius: 4px; margin-bottom: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+    .more-chip { font-size: 10px; color: var(--text3); padding: 1px 4px; }
+
+    /* ===== 주/일 뷰 ===== */
+    #weekView, #dayView { display: none; padding: 0 8px 16px; }
+    .week-head { display: grid; grid-template-columns: 44px repeat(7, 1fr); border-bottom: 0.5px solid var(--border2); margin-bottom: 0; }
+    .week-head-cell { text-align: center; padding: 6px 2px; }
+    .week-head-cell .wd { font-size: 11px; color: var(--text2); }
+    .week-head-cell .wn { font-size: 16px; font-weight: 500; color: var(--text); }
+    .week-head-cell.today-col .wn { background: var(--text); color: var(--bg); border-radius: 50%; width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; }
+    .week-body { display: grid; grid-template-columns: 44px repeat(7, 1fr); max-height: 500px; overflow-y: auto; }
+    .time-col .time-slot { height: 44px; font-size: 10px; color: var(--text3); text-align: right; padding: 2px 4px 0 0; border-bottom: 0.5px solid var(--border); }
+    .week-col { border-left: 0.5px solid var(--border); position: relative; }
+    .week-cell { height: 44px; border-bottom: 0.5px solid var(--border); cursor: pointer; }
+    .week-cell:hover { background: var(--bg2); }
+    .week-ev { position: absolute; left: 2px; right: 2px; border-radius: 4px; font-size: 10px; padding: 2px 4px; overflow: hidden; cursor: pointer; z-index: 1; }
+
+    .day-view-title { font-size: 16px; font-weight: 600; padding: 12px 8px 8px; color: var(--text); }
+    .day-ev-list { padding: 4px 0; }
+    .day-ev-item { display: flex; align-items: center; gap: 10px; padding: 9px 8px; border-radius: var(--radius); cursor: pointer; }
+    .day-ev-item:hover { background: var(--bg2); }
+    .day-ev-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .day-ev-time { font-size: 12px; color: var(--text2); min-width: 90px; }
+    .day-ev-title { font-size: 14px; color: var(--text); }
+    .empty-msg { padding: 2rem; text-align: center; font-size: 13px; color: var(--text3); }
+
+    /* ===== 할 일 ===== */
+    .todo-panel { border-top: 0.5px solid var(--border2); margin: 8px 8px 0; padding-top: 14px; padding-bottom: 24px; }
+    .todo-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .todo-title { font-size: 14px; font-weight: 600; color: var(--text); }
+    .todo-item { display: flex; align-items: center; gap: 8px; padding: 7px 4px; border-bottom: 0.5px solid var(--border); font-size: 13px; color: var(--text); }
+    .todo-item input[type=checkbox] { width: 15px; height: 15px; cursor: pointer; flex-shrink: 0; accent-color: var(--text); }
+    .todo-item.done span { text-decoration: line-through; color: var(--text3); }
+    .todo-del { margin-left: auto; font-size: 14px; color: var(--text3); cursor: pointer; background: none; border: none; padding: 0 2px; }
+    .todo-del:hover { color: #E24B4A; }
+
+    /* ===== 모달 ===== */
+    .modal-wrap { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 200; align-items: center; justify-content: center; padding: 16px; }
+    .modal-wrap.open { display: flex; }
+    .modal { background: var(--bg); border-radius: var(--radius-lg); border: 0.5px solid var(--border2); padding: 1.5rem; width: 100%; max-width: 360px; }
+    .modal h3 { font-size: 16px; font-weight: 600; margin-bottom: 1rem; color: var(--text); }
+    .fg { margin-bottom: 12px; }
+    .fg label { font-size: 12px; color: var(--text2); display: block; margin-bottom: 4px; }
+    .fg input, .fg select, .fg textarea { width: 100%; padding: 8px 10px; border: 0.5px solid var(--border2); border-radius: var(--radius); font-size: 13px; background: var(--bg); color: var(--text); font-family: inherit; }
+    .fg textarea { height: 60px; resize: none; }
+    .fg-row { display: flex; gap: 8px; }
+    .fg-row .fg { flex: 1; }
+    .modal-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 1rem; }
+    .btn-del { padding: 7px 14px; border: none; border-radius: var(--radius); background: #FCEBEB; color: #A32D2D; cursor: pointer; font-size: 13px; margin-right: auto; }
+
+    /* ===== 오프라인 배너 ===== */
+    #offlineBanner { display: none; background: #FAEEDA; color: #633806; text-align: center; font-size: 12px; padding: 6px; }
+  </style>
+</head>
+<body>
+
+<div id="offlineBanner">오프라인 상태입니다. 연결되면 자동으로 동기화돼요.</div>
+
+<div class="topbar">
+  <div class="nav-group">
+    <button class="btn" id="prevBtn">&#8249;</button>
+    <span class="month-title" id="monthTitle"></span>
+    <button class="btn" id="nextBtn">&#8250;</button>
+    <button class="btn" id="todayBtn" style="font-size:12px;">오늘</button>
+  </div>
+  <div class="view-tabs">
+    <button class="view-tab active" data-view="month">월</button>
+    <button class="view-tab" data-view="week">주</button>
+    <button class="view-tab" data-view="day">일</button>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div class="sync-dot" id="syncDot" title="동기화 상태"></div>
+    <button class="btn btn-primary" id="addEventBtn">+ 추가</button>
+  </div>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:var(--cat-work)"></div>업무</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--cat-personal)"></div>개인</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--cat-health)"></div>건강</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--cat-study)"></div>학습</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--cat-etc)"></div>기타</div>
+</div>
+
+<!-- 월 뷰 -->
+<div id="monthView">
+  <table class="cal-table">
+    <thead><tr id="calHead"></tr></thead>
+    <tbody id="calBody"></tbody>
+  </table>
+</div>
+
+<!-- 주 뷰 -->
+<div id="weekView">
+  <div class="week-head" id="weekHead"><div></div></div>
+  <div class="week-body">
+    <div class="time-col" id="timeCol"></div>
+    <div id="weekCols" style="display:contents;"></div>
+  </div>
+</div>
+
+<!-- 일 뷰 -->
+<div id="dayView">
+  <div class="day-view-title" id="dayViewTitle"></div>
+  <div class="day-ev-list" id="dayEvList"></div>
+</div>
+
+<!-- 할 일 -->
+<div class="todo-panel">
+  <div class="todo-header">
+    <span class="todo-title">할 일 목록</span>
+    <button class="btn" id="todoAddBtn" style="font-size:12px;">+ 추가</button>
+  </div>
+  <div id="todoList"></div>
+</div>
+
+<!-- 일정 모달 -->
+<div class="modal-wrap" id="evModal">
+  <div class="modal">
+    <h3 id="evModalTitle">일정 추가</h3>
+    <div class="fg"><label>제목</label><input type="text" id="evTitle" placeholder="일정 제목" /></div>
+    <div class="fg-row">
+      <div class="fg"><label>날짜</label><input type="date" id="evDate" /></div>
+      <div class="fg"><label>카테고리</label>
+        <select id="evCat">
+          <option value="work">업무</option>
+          <option value="personal">개인</option>
+          <option value="health">건강</option>
+          <option value="study">학습</option>
+          <option value="etc">기타</option>
+        </select>
+      </div>
+    </div>
+    <div class="fg-row">
+      <div class="fg"><label>시작</label><input type="time" id="evStart" /></div>
+      <div class="fg"><label>종료</label><input type="time" id="evEnd" /></div>
+    </div>
+    <div class="fg"><label>메모</label><textarea id="evMemo" placeholder="메모 (선택사항)"></textarea></div>
+    <div class="modal-footer">
+      <button class="btn-del" id="evDelBtn" style="display:none;">삭제</button>
+      <button class="btn" id="evCancelBtn">취소</button>
+      <button class="btn btn-primary" id="evSaveBtn">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 할 일 모달 -->
+<div class="modal-wrap" id="todoModal">
+  <div class="modal">
+    <h3>할 일 추가</h3>
+    <div class="fg"><label>할 일</label><input type="text" id="todoInput" placeholder="할 일을 입력하세요" /></div>
+    <div class="modal-footer">
+      <button class="btn" id="todoCancelBtn">취소</button>
+      <button class="btn btn-primary" id="todoSaveBtn">추가</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================
+     ★ Firebase SDK ★
+     아래 firebaseConfig 안의 값을 본인의 Firebase API 키로 교체하세요!
+     Firebase 콘솔 → 프로젝트 설정 → 앱 등록 화면에서 복사한 값을 붙여넣으세요.
+================================================================ -->
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, setDoc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+// ★★★ 아래 값을 본인의 Firebase 설정으로 교체하세요 ★★★
+const firebaseConfig = {
+  apiKey:            "AIzaSyBQwIbe-1T6LSd8WrIwYorDZzv2TYIc0Ic",
+  authDomain:        "flu-web-c88b0.firebaseapp.com",
+  projectId:         "flu-web-c88b0",
+  storageBucket:     "flu-web-c88b0.firebasestorage.app",
+  messagingSenderId: "840699992868",
+  appId:             "1:840699992868:web:17585542bd22a6dfe3f1b1"
+};
+// ★★★ 교체 완료 후 저장하세요 ★★★
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// ─── 상태 ───────────────────────────────────────────────
+const CATS = {
+  work:     { label:'업무',  color:'var(--cat-work)',     bg:'var(--cat-work-bg)',     text:'var(--cat-work-text)' },
+  personal: { label:'개인',  color:'var(--cat-personal)', bg:'var(--cat-personal-bg)', text:'var(--cat-personal-text)' },
+  health:   { label:'건강',  color:'var(--cat-health)',   bg:'var(--cat-health-bg)',   text:'var(--cat-health-text)' },
+  study:    { label:'학습',  color:'var(--cat-study)',    bg:'var(--cat-study-bg)',    text:'var(--cat-study-text)' },
+  etc:      { label:'기타',  color:'var(--cat-etc)',      bg:'var(--cat-etc-bg)',      text:'var(--cat-etc-text)' }
+};
+const WD = ['일','월','화','수','목','금','토'];
+
+let events = [];
+let todos  = [];
+let curDate = new Date(2026, 3, 21);
+let selDate = null;
+let curView = 'month';
+let editEvId = null;
+
+// ─── 동기화 표시 ─────────────────────────────────────────
+const syncDot = document.getElementById('syncDot');
+function setSyncStatus(status) {
+  syncDot.className = 'sync-dot' + (status === 'ok' ? ' ok' : status === 'err' ? ' err' : '');
+}
+
+// ─── Firestore 실시간 리스닝 ──────────────────────────────
+onSnapshot(collection(db, 'events'), snap => {
+  events = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  renderCurrent();
+  setSyncStatus('ok');
+}, () => setSyncStatus('err'));
+
+onSnapshot(collection(db, 'todos'), snap => {
+  todos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  renderTodos();
+}, () => {});
+
+// ─── 유틸 ────────────────────────────────────────────────
+function ds(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function todayDs() { return ds(new Date()); }
+function evsByDate(date) { return events.filter(e => e.date === date); }
+
+// ─── 월 뷰 렌더 ──────────────────────────────────────────
+function renderMonth() {
+  const y = curDate.getFullYear(), m = curDate.getMonth();
+  document.getElementById('monthTitle').textContent = `${y}년 ${m+1}월`;
+  document.getElementById('calHead').innerHTML = WD.map(w => `<th>${w}</th>`).join('');
+
+  const first = new Date(y, m, 1).getDay();
+  const daysM = new Date(y, m+1, 0).getDate();
+  const daysP = new Date(y, m, 0).getDate();
+  const today = todayDs();
+  let html = '', day = 1, nextDay = 1;
+
+  for (let r = 0; r < 6; r++) {
+    html += '<tr>';
+    for (let c = 0; c < 7; c++) {
+      const idx = r*7+c;
+      let d, dateStr, other = false;
+      if (idx < first) { d = daysP - first + idx + 1; dateStr = ds(new Date(y,m-1,d)); other=true; }
+      else if (day > daysM) { d = nextDay++; dateStr = ds(new Date(y,m+1,d)); other=true; }
+      else { d = day++; dateStr = ds(new Date(y,m,d)); }
+
+      const dayEvs = evsByDate(dateStr);
+      const cls = ['day-cell', c===0?'col-sun':c===6?'col-sat':'', other?'other':'', dateStr===today?'today':'', dateStr===selDate?'selected':''].filter(Boolean).join(' ');
+      const chips = dayEvs.slice(0,2).map(e => {
+        const ct = CATS[e.cat];
+        return `<span class="chip" style="background:${ct.bg};color:${ct.text};" data-eid="${e.id}">${e.title}</span>`;
+      }).join('') + (dayEvs.length>2 ? `<span class="more-chip">+${dayEvs.length-2}개</span>` : '');
+
+      html += `<td class="${cls}" data-date="${dateStr}"><span class="day-num">${d}</span>${chips}</td>`;
+    }
+    html += '</tr>';
+    if (day > daysM && r >= 4) break;
+  }
+  document.getElementById('calBody').innerHTML = html;
+
+  document.querySelectorAll('.day-cell').forEach(cell => {
+    cell.addEventListener('click', e => {
+      if (e.target.classList.contains('chip')) { openEditEv(e.target.dataset.eid); return; }
+      selDate = cell.dataset.date;
+      switchView('day');
+    });
+  });
+}
+
+// ─── 주 뷰 렌더 ──────────────────────────────────────────
+function renderWeek() {
+  const d = new Date(curDate);
+  d.setDate(d.getDate() - d.getDay());
+  const days = Array.from({length:7}, (_, i) => { const nd = new Date(d); nd.setDate(d.getDate()+i); return nd; });
+  const today = todayDs();
+  document.getElementById('monthTitle').textContent = `${days[0].getMonth()+1}/${days[0].getDate()} 주`;
+
+  document.getElementById('weekHead').innerHTML = '<div></div>' + days.map((nd, i) => {
+    const dstr = ds(nd);
+    return `<div class="week-head-cell${dstr===today?' today-col':''}"><div class="wd">${WD[i]}</div><div class="wn">${nd.getDate()}</div></div>`;
+  }).join('');
+
+  document.getElementById('timeCol').innerHTML = Array.from({length:24}, (_,h) =>
+    `<div class="time-slot">${String(h).padStart(2,'0')}:00</div>`).join('');
+
+  document.getElementById('weekCols').innerHTML = days.map((nd, i) => {
+    const dstr = ds(nd);
+    const cells = Array.from({length:24}, (_,h) =>
+      `<div class="week-cell" data-date="${dstr}" data-hour="${String(h).padStart(2,'0')}"></div>`).join('');
+    const overlays = evsByDate(dstr).map(ev => {
+      if (!ev.start) return '';
+      const [sh,sm] = ev.start.split(':').map(Number);
+      const [eh,em] = (ev.end||ev.start).split(':').map(Number);
+      const top = (sh*60+sm)/60*44, h = Math.max(((eh*60+em)-(sh*60+sm))/60*44, 20);
+      const c = CATS[ev.cat];
+      return `<div class="week-ev" style="top:${top}px;height:${h}px;background:${c.bg};color:${c.text};" data-eid="${ev.id}">${ev.title}</div>`;
+    }).join('');
+    return `<div class="week-col" style="position:relative;">${cells}${overlays}</div>`;
+  }).join('');
+
+  document.querySelectorAll('.week-ev').forEach(el => el.addEventListener('click', () => openEditEv(el.dataset.eid)));
+  document.querySelectorAll('.week-cell').forEach(el => el.addEventListener('click', () => {
+    selDate = el.dataset.date;
+    openAddEv(selDate, el.dataset.hour + ':00');
+  }));
+}
+
+// ─── 일 뷰 렌더 ──────────────────────────────────────────
+function renderDay() {
+  const dstr = selDate || todayDs();
+  const d = new Date(dstr + 'T00:00:00');
+  document.getElementById('monthTitle').textContent = `${d.getMonth()+1}월 ${d.getDate()}일 (${WD[d.getDay()]})`;
+  document.getElementById('dayViewTitle').textContent = '';
+  const evs = evsByDate(dstr).sort((a,b) => (a.start||'').localeCompare(b.start||''));
+  const list = document.getElementById('dayEvList');
+  if (!evs.length) { list.innerHTML = '<div class="empty-msg">일정이 없어요. 위의 + 추가를 눌러보세요!</div>'; return; }
+  list.innerHTML = evs.map(ev => {
+    const c = CATS[ev.cat];
+    const t = ev.start ? `${ev.start}${ev.end?' ~ '+ev.end:''}` : '하루 종일';
+    return `<div class="day-ev-item" data-eid="${ev.id}"><div class="day-ev-dot" style="background:${c.color};"></div><span class="day-ev-time">${t}</span><span class="day-ev-title">${ev.title}</span></div>`;
+  }).join('');
+  document.querySelectorAll('.day-ev-item').forEach(el => el.addEventListener('click', () => openEditEv(el.dataset.eid)));
+}
+
+// ─── 할 일 렌더 ──────────────────────────────────────────
+function renderTodos() {
+  const list = document.getElementById('todoList');
+  if (!todos.length) { list.innerHTML = '<div class="empty-msg" style="padding:1rem 0;">할 일을 추가해보세요!</div>'; return; }
+  list.innerHTML = todos.map(t => `
+    <div class="todo-item${t.done?' done':''}" data-tid="${t.id}">
+      <input type="checkbox" ${t.done?'checked':''} data-tid="${t.id}" />
+      <span>${t.text}</span>
+      <button class="todo-del" data-tid="${t.id}">×</button>
+    </div>`).join('');
+  document.querySelectorAll('.todo-item input').forEach(cb => cb.addEventListener('change', async () => {
+    await updateDoc(doc(db,'todos',cb.dataset.tid), { done: cb.checked });
+  }));
+  document.querySelectorAll('.todo-del').forEach(btn => btn.addEventListener('click', async () => {
+    await deleteDoc(doc(db,'todos',btn.dataset.tid));
+  }));
+}
+
+// ─── 뷰 전환 ─────────────────────────────────────────────
+function switchView(v) {
+  curView = v;
+  document.querySelectorAll('.view-tab').forEach(t => t.classList.toggle('active', t.dataset.view===v));
+  document.getElementById('monthView').style.display = v==='month' ? '' : 'none';
+  document.getElementById('weekView').style.display  = v==='week'  ? 'block' : 'none';
+  document.getElementById('dayView').style.display   = v==='day'   ? 'block' : 'none';
+  renderCurrent();
+}
+function renderCurrent() {
+  if (curView==='month') renderMonth();
+  else if (curView==='week') renderWeek();
+  else renderDay();
+}
+
+// ─── 모달: 일정 추가/수정 ────────────────────────────────
+function openAddEv(date, start='') {
+  editEvId = null;
+  document.getElementById('evModalTitle').textContent = '일정 추가';
+  document.getElementById('evTitle').value = '';
+  document.getElementById('evDate').value = date || todayDs();
+  document.getElementById('evCat').value = 'work';
+  document.getElementById('evStart').value = start;
+  document.getElementById('evEnd').value = '';
+  document.getElementById('evMemo').value = '';
+  document.getElementById('evDelBtn').style.display = 'none';
+  document.getElementById('evModal').classList.add('open');
+  setTimeout(() => document.getElementById('evTitle').focus(), 60);
+}
+function openEditEv(eid) {
+  const ev = events.find(e => e.id===eid);
+  if (!ev) return;
+  editEvId = eid;
+  document.getElementById('evModalTitle').textContent = '일정 수정';
+  document.getElementById('evTitle').value = ev.title;
+  document.getElementById('evDate').value = ev.date;
+  document.getElementById('evCat').value = ev.cat;
+  document.getElementById('evStart').value = ev.start||'';
+  document.getElementById('evEnd').value = ev.end||'';
+  document.getElementById('evMemo').value = ev.memo||'';
+  document.getElementById('evDelBtn').style.display = '';
+  document.getElementById('evModal').classList.add('open');
+}
+function closeEvModal() { document.getElementById('evModal').classList.remove('open'); }
+
+document.getElementById('evSaveBtn').addEventListener('click', async () => {
+  const title = document.getElementById('evTitle').value.trim();
+  if (!title) { document.getElementById('evTitle').focus(); return; }
+  const data = {
+    title, date: document.getElementById('evDate').value,
+    cat: document.getElementById('evCat').value,
+    start: document.getElementById('evStart').value,
+    end: document.getElementById('evEnd').value,
+    memo: document.getElementById('evMemo').value
+  };
+  if (editEvId) await updateDoc(doc(db,'events',editEvId), data);
+  else await addDoc(collection(db,'events'), data);
+  closeEvModal();
+});
+document.getElementById('evDelBtn').addEventListener('click', async () => {
+  if (!editEvId) return;
+  await deleteDoc(doc(db,'events',editEvId));
+  closeEvModal();
+});
+document.getElementById('evCancelBtn').addEventListener('click', closeEvModal);
+document.getElementById('evModal').addEventListener('click', e => { if (e.target===document.getElementById('evModal')) closeEvModal(); });
+document.getElementById('evTitle').addEventListener('keydown', e => { if(e.key==='Enter') document.getElementById('evSaveBtn').click(); });
+
+// ─── 모달: 할 일 추가 ────────────────────────────────────
+document.getElementById('todoAddBtn').addEventListener('click', () => {
+  document.getElementById('todoInput').value = '';
+  document.getElementById('todoModal').classList.add('open');
+  setTimeout(() => document.getElementById('todoInput').focus(), 60);
+});
+document.getElementById('todoSaveBtn').addEventListener('click', async () => {
+  const text = document.getElementById('todoInput').value.trim();
+  if (!text) return;
+  await addDoc(collection(db,'todos'), { text, done: false });
+  document.getElementById('todoModal').classList.remove('open');
+});
+document.getElementById('todoCancelBtn').addEventListener('click', () => document.getElementById('todoModal').classList.remove('open'));
+document.getElementById('todoInput').addEventListener('keydown', e => { if(e.key==='Enter') document.getElementById('todoSaveBtn').click(); });
+
+// ─── 네비게이션 ──────────────────────────────────────────
+document.getElementById('prevBtn').addEventListener('click', () => {
+  if (curView==='month') curDate.setMonth(curDate.getMonth()-1);
+  else if (curView==='week') curDate.setDate(curDate.getDate()-7);
+  else { curDate.setDate(curDate.getDate()-1); selDate=ds(curDate); }
+  renderCurrent();
+});
+document.getElementById('nextBtn').addEventListener('click', () => {
+  if (curView==='month') curDate.setMonth(curDate.getMonth()+1);
+  else if (curView==='week') curDate.setDate(curDate.getDate()+7);
+  else { curDate.setDate(curDate.getDate()+1); selDate=ds(curDate); }
+  renderCurrent();
+});
+document.getElementById('todayBtn').addEventListener('click', () => {
+  curDate = new Date(); selDate = todayDs(); renderCurrent();
+});
+document.querySelectorAll('.view-tab').forEach(t => t.addEventListener('click', () => switchView(t.dataset.view)));
+document.getElementById('addEventBtn').addEventListener('click', () => openAddEv(selDate||todayDs()));
+
+// ─── 오프라인 감지 ───────────────────────────────────────
+window.addEventListener('offline', () => { document.getElementById('offlineBanner').style.display='block'; setSyncStatus('err'); });
+window.addEventListener('online',  () => { document.getElementById('offlineBanner').style.display='none'; setSyncStatus('ok'); });
+
+// ─── PWA Service Worker 등록 ─────────────────────────────
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(console.error);
+}
+
+// ─── 초기 렌더 ───────────────────────────────────────────
+curDate = new Date(2026, 3, 21);
+selDate = '2026-04-21';
+renderMonth();
+renderTodos();
+</script>
+</body>
+</html>
